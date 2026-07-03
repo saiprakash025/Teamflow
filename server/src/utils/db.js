@@ -12,7 +12,6 @@ async function connectDB() {
 
   try {
     await mongoose.connect(uri, {
-      // optional: mongoose 7+ uses defaults, but you can still pass options
     });
     console.log(' Connected to MongoDB');
   } catch (error) {
