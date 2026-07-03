@@ -8,6 +8,8 @@ const cors = require('cors');
 const { connectDB } = require('./utils/db');
 const authRouter = require('./routes/auth');
 const { requireAuth } = require('./middleware/auth');
+const projectsRouter = require('./routes/projects');
+const tasksRouter = require('./routes/tasks');
 
 const app = express();
 
@@ -33,6 +35,9 @@ app.get('/api/me', requireAuth, (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 app.use('/api/auth', authRouter);
+app.use('/api/projects', projectsRouter);
+app.use('/api/tasks', tasksRouter);
+
 
 app.listen(PORT, () => {
   console.log(` Server listening on port ${PORT}`);
