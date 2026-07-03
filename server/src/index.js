@@ -10,6 +10,7 @@ const authRouter = require('./routes/auth');
 const { requireAuth } = require('./middleware/auth');
 const projectsRouter = require('./routes/projects');
 const tasksRouter = require('./routes/tasks');
+const rcaRouter = require('./routes/rca');
 
 const notificationsRouter = require('./routes/notifications');
 
@@ -40,6 +41,8 @@ app.use('/api/auth', authRouter);
 app.use('/api/projects', projectsRouter);
 app.use('/api/tasks', tasksRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/rca', rcaRouter);
+
 
 
 app.listen(PORT, () => {
