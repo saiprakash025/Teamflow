@@ -2,6 +2,7 @@
 const express = require('express');
 const Task = require('../models/Task');
 const Project = require('../models/Project');
+const ProjectTaskLink = require('../models/ProjectTaskLink');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -37,29 +38,49 @@ async function hasCircularDependency(taskId, newBlockedById){
 router.get('/', requireAuth, async (req, res) => {
   try {
     const { project, status, assignee } = req.query;
-    const userId = req.user.userId;
 
     const filter = {};
+    if (project) filter.project = project;
+    if (status) filter.status = status;
+    if (assignee) filter.assignee = assignee;
+     
+    //Direct tasks
+    const directTasks = await Task.find(filter)
+      .populate('assignee', 'name email')
+      .populate('project', 'name');
+
+    let allTasks = directTasks;
 
     if (project) {
-      filter.project = project;
+      const links = await ProjectTaskLink.find({ project }).populate({
+        path: 'task',
+        populate: [
+          { path: 'assignee', select: 'name email' },
+          { path: 'project', select: 'name' },
+        ],
+      });
+
+      const linkedTasks = links.map((l) => l.task);
+
+      // Merge direct + linked, avoiding duplicates by _id
+      const seen = new Set(directTasks.map((t) => t._id.toString()));
+      linkedTasks.forEach((t) => {
+        if (!seen.has(t._id.toString())) {
+          allTasks.push(t);
+          seen.add(t._id.toString());
+        }
+      });
+  
     }
 
-    if (status) {
-      filter.status = status;
-    }
 
-    if (assignee) {
-      filter.assignee = assignee;
-    }
+   allTasks.sort((a, b) => {
+      const da = a.dueDate || a.createdAt;
+      const db = b.dueDate || b.createdAt;
+      return da - db;
+    });
 
-    // Optional: only tasks in projects the user can see
-    const tasks = await Task.find(filter)
-      .populate('assignee', 'name email')
-      .populate('project', 'name')
-      .sort({ dueDate: 1, createdAt: -1 });
-
-    res.json(tasks);
+    res.json(allTasks);
   } catch (err) {
     console.error('List tasks error:', err);
     res.status(500).json({ message: 'Server error' });
@@ -158,6 +179,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     if (attachments !== undefined) task.attachments = attachments;
     if (comments !== undefined) task.comments = comments;
     if (mentions !== undefined) task.mentions = mentions;
+    if (parent !== undefined) task.parent = parent;
 
     await task.save();
 

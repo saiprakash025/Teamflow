@@ -14,6 +14,7 @@ const rcaRouter = require('./routes/rca');
 const analyticsRouter = require('./routes/analytics');
 
 const notificationsRouter = require('./routes/notifications');
+const projectTaskLinksRouter = require('./routes/projectTaskLinks');
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use('/api/tasks', tasksRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/rca', rcaRouter);
 app.use('/api/analytics', analyticsRouter);
+app.use('/api/project-task-links', projectTaskLinksRouter);
 
 
 
