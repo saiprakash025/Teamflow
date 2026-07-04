@@ -14,6 +14,7 @@ const taskSchema = new mongoose.Schema(
       enum: ['low', 'medium', 'high'],
       default: 'medium',
     },
+
     assignee: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     dueDate: { type: Date },
     project: {
@@ -23,6 +24,10 @@ const taskSchema = new mongoose.Schema(
     },
     blockedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Task' }],
     blocks: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Task' }],
+    parent: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'Task',
+},
     comments: [
       {
         author: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
