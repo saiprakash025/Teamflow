@@ -3,14 +3,34 @@ const mongoose = require('mongoose');
 
 const rcaSchema = new mongoose.Schema(
   {
+    task: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Task',
+      required: true,
+    },
     title: {
       type: String,
       required: true,
       trim: true,
     },
-    description: {
+
+    timeline: {
       type: String,
+      trim: true,
     },
+    contributingFactors: {
+      type: String,
+      trim: true,
+    },
+    correctiveActions: {
+      type: String,
+      trim: true,
+    },
+    preventiveMeasures: {
+      type: String,
+      trim: true,
+    },
+
     status: {
       type: String,
       enum: ['draft', 'submitted', 'reviewed'],
@@ -27,16 +47,45 @@ const rcaSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
-    findings: [
+
+    reviews: [
       {
-        type: String,
+        reviewer: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true,
+        },
+        decision: {
+          type: String,
+          enum: ['approved', 'rejected'],
+          required: true,
+        },
+        comment: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        decidedAt: {
+          type: Date,
+          default: Date.now,
+        },
       },
     ],
-    actions: [
+
+     comments: [
       {
-        type: String,
+        author: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        body: String,
+        createdAt: { type: Date, default: Date.now },
       },
     ],
+    attachments: [
+      {
+        url: String,
+        name: String,
+      },
+    ],
+
   },
   { timestamps: true }
 );
