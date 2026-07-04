@@ -5,6 +5,39 @@ const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
+function computeRcaStatus(rca) {
+  // If no reviews yet, keep current status
+  if (!rca.reviews || rca.reviews.length === 0) {
+    return rca.status;
+  }
+
+  const reviewerIds = rca.reviewers.map((r) => r.toString());
+  const decisionsByReviewer = new Map();
+
+  rca.reviews.forEach((rev) => {
+    decisionsByReviewer.set(rev.reviewer.toString(), rev.decision);
+  });
+
+  const hasReject = reviewerIds.some(
+    (revId) => decisionsByReviewer.get(revId) === 'rejected'
+  );
+
+  if (hasReject) {
+    return 'submitted';
+  }
+
+  const allApproved =
+    reviewerIds.length > 0 &&
+    reviewerIds.every(
+      (revId) => decisionsByReviewer.get(revId) === 'approved'
+    );
+
+  if (allApproved) {
+    return 'reviewed';
+  }
+  return 'submitted';
+}
+
 //  list RCA reports 
 router.get('/', requireAuth, async (req, res) => {
   try {
@@ -24,20 +57,25 @@ router.get('/', requireAuth, async (req, res) => {
 router.post('/', requireAuth, async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { title, description, reviewers, findings, actions } = req.body;
+    const { task,title,timeline,contributingFactors,correctiveActions,preventiveMeasures, reviewers } = req.body;
 
-    if (!title || !description) {
-      return res.status(400).json({ message: 'Title and description are required' });
+    if (!title || !task) {
+      return res.status(400).json({ message: 'Title and task are required' });
     }
 
     const rca = await Rca.create({
+      task,
       title,
-      description,
+      timeline: timeline || '',
+      contributingFactors: contributingFactors || '',
+      correctiveActions: correctiveActions || '',
+      preventiveMeasures: preventiveMeasures || '',
       status: 'draft',
       owner: userId,
       reviewers: reviewers || [],
-      findings: findings || '',
-      actions: actions || [],
+      reviews: [],
+      comments: [],
+      attachments: []
     });
 
     res.status(201).json(rca);
