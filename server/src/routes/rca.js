@@ -89,8 +89,9 @@ router.post('/', requireAuth, async (req, res) => {
 router.put('/:id', requireAuth, async (req, res) => {
   try {
     const userId = req.user.userId;
+    const userRole = req.user.role;
     const { id } = req.params;
-    const { title, description, status, reviewers, findings, actions } = req.body;
+    const { title,timeline,contributingFactors,correctiveActions,preventiveMeasures, reviewers,submit,reviewDecision } = req.body;
 
     const rca = await Rca.findById(id);
 
@@ -101,31 +102,39 @@ router.put('/:id', requireAuth, async (req, res) => {
     const isOwner = rca.owner.toString() === userId;
     const isReviewer = rca.reviewers.some((r) => r.toString() === userId);
 
-    // Only owner can edit content or submit; reviewers can mark reviewed
-    if (!isOwner && !isReviewer) {
-      return res.status(403).json({ message: 'Not allowed to update this RCA' });
+     if (isOwner && rca.status === 'draft') {
+      if (title !== undefined) rca.title = title;
+      if (timeline !== undefined) rca.timeline = timeline;
+      if (contributingFactors !== undefined) rca.contributingFactors = contributingFactors;
+      if (correctiveActions !== undefined) rca.correctiveActions = correctiveActions;
+      if (preventiveMeasures !== undefined) rca.preventiveMeasures = preventiveMeasures;
+      if (Array.isArray(reviewers)) rca.reviewers = reviewers;
     }
 
-    // Basic field updates (owner or reviewer)
-    if (title !== undefined && isOwner) rca.title = title;
-    if (description !== undefined && isOwner) rca.description = description;
-    if (Array.isArray(reviewers) && isOwner) rca.reviewers = reviewers;
-    if (findings !== undefined) rca.findings = findings;
-    if (Array.isArray(actions)) rca.actions = actions;
+    if (isOwner && submit === true && rca.status === 'draft') {
+      rca.status = 'submitted';
+    }
+    if (reviewDecision && isReviewer && rca.status === 'submitted') {
+      const { decision, comment } = reviewDecision;
 
-    // Status transitions
-    if (status) {
-      // draft -> submitted (owner)
-      if (rca.status === 'draft' && status === 'submitted' && isOwner) {
-        rca.status = 'submitted';
+      if (!decision || !comment) {
+        return res.status(400).json({
+          message: 'Decision and comment are required for review',
+          reason: 'MISSING_REVIEW_COMMENT',
+        });
       }
-      // submitted -> reviewed (reviewer)
-      else if (rca.status === 'submitted' && status === 'reviewed' && isReviewer) {
-        rca.status = 'reviewed';
-      } else {
-        // Invalid transition; you can choose to return 400 or ignore
-        return res.status(400).json({ message: 'Invalid status transition' });
+
+      if (!['approved', 'rejected'].includes(decision)) {
+        return res.status(400).json({ message: 'Invalid decision value' });
       }
+
+      rca.reviews.push({
+        reviewer: userId,
+        decision,
+        comment,
+        decidedAt: new Date(),
+      });
+      rca.status = computeRcaStatus(rca);
     }
 
     await rca.save();
@@ -133,6 +142,46 @@ router.put('/:id', requireAuth, async (req, res) => {
     res.json(rca);
   } catch (err) {
     console.error('Update RCA error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post('/:id/override', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const userRole = req.user.role;
+    const { id } = req.params;
+    const { newReviewers, forceClose, reason } = req.body;
+
+    if (userRole !== 'admin') {
+      return res.status(403).json({ message: 'Admin override not allowed for this user' });
+    }
+
+    const rca = await Rca.findById(id);
+    if (!rca) {
+      return res.status(404).json({ message: 'RCA not found' });
+    }
+    if (Array.isArray(newReviewers)) {
+      rca.reviewers = newReviewers;
+      rca.reviews = []; 
+      rca.status = 'submitted'; 
+    }
+
+    if (forceClose === true) {
+      rca.status = 'reviewed';
+    }
+
+    await rca.save();
+
+    res.json({
+      rca,
+      override: {
+        by: userId,
+        reason: reason || 'Admin override',
+      },
+    });
+  } catch (err) {
+    console.error('Admin override RCA error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
