@@ -1,9 +1,12 @@
 // server/src/routes/rca.js
 const express = require('express');
 const Rca = require('../models/Rca');
+const Task = require('../models/Task');
+const Project = require('../models/Project');
 const { requireAuth } = require('../middleware/auth');
 const { emitNotification } = require('../events');
 const { logActivity } = require('../utils/activity');
+const { canEditTask } = require('../utils/permissions');
 
 const router = express.Router();
 
@@ -63,6 +66,16 @@ router.post('/', requireAuth, async (req, res) => {
 
     if (!title || !task) {
       return res.status(400).json({ message: 'Title and task are required' });
+    }
+
+    const taskDoc = await Task.findById(task);
+    if (!taskDoc) {
+      return res.status(400).json({ message: 'Invalid task' });
+    }
+
+    const taskProject = await Project.findById(taskDoc.project);
+    if (!taskProject || !canEditTask(taskProject, req.user)) {
+      return res.status(403).json({ message: 'Not allowed to open an RCA for this task' });
     }
 
     const rca = await Rca.create({
@@ -275,6 +288,68 @@ router.post('/:id/override', requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error('Admin override RCA error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// add a comment (with optional threading + @mentions)
+router.post('/:id/comments', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { body, parentComment, mentions } = req.body;
+
+    if (!body) {
+      return res.status(400).json({ message: 'Comment body is required' });
+    }
+
+    const rca = await Rca.findById(id);
+    if (!rca) {
+      return res.status(404).json({ message: 'RCA not found' });
+    }
+
+    const taskDoc = await Task.findById(rca.task);
+    const taskProject = taskDoc ? await Project.findById(taskDoc.project) : null;
+
+    const isOwner = rca.owner.toString() === req.user.userId;
+    const isReviewer = rca.reviewers.some((r) => r.toString() === req.user.userId);
+    const hasProjectAccess = taskProject && canEditTask(taskProject, req.user);
+
+    if (!isOwner && !isReviewer && !hasProjectAccess) {
+      return res.status(403).json({ message: 'Not allowed to comment on this RCA' });
+    }
+
+    const mentionIds = Array.isArray(mentions) ? mentions : [];
+
+    rca.comments.push({
+      author: req.user.userId,
+      body,
+      parentComment: parentComment || null,
+      createdAt: new Date(),
+    });
+    await rca.save();
+
+    await logActivity({
+      entityType: 'rca',
+      entityId: rca._id,
+      actor: req.user.userId,
+      action: 'RCA_COMMENT_ADDED',
+      payload: { body, parentComment: parentComment || null },
+    });
+
+    mentionIds.forEach((mentionedUserId) => {
+      if (mentionedUserId.toString() !== req.user.userId.toString()) {
+        emitNotification(
+          mentionedUserId,
+          'mention',
+          `You were mentioned in a comment on RCA "${rca.title}"`,
+          rca._id.toString()
+        );
+      }
+    });
+
+    res.status(201).json(rca.comments[rca.comments.length - 1]);
+  } catch (err) {
+    console.error('Add RCA comment error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });

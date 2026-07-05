@@ -3,10 +3,6 @@ const EventEmitter = require('events');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 
-function sendEmailStub(toUserId, message) {
-  console.log(`[EMAIL STUB] to user=${toUserId}: ${message}`);
-}
-
 class NotificationBus extends EventEmitter {}
 
 const notificationBus = new NotificationBus();
@@ -24,30 +20,31 @@ async function sendEmailStub(toUserId, message) {
 
 // Listener: create notification + send email stub
 notificationBus.on('notify', async (payload) => {
-  const { userId, type, message,entityId } = payload;
+  const { userId, type, message, entityId } = payload;
 
   try {
-    
+
     const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
 
     const existing = await Notification.findOne({
       user: userId,
       type,
+      entityId: entityId || null,
       createdAt: { $gte: tenMinutesAgo },
-      // If you add entityId to Notification, include it here
     });
 
     if (existing) {
       console.log(
-        `Dedup: skipping duplicate notification for user=${userId}, type=${type}`
+        `Dedup: skipping duplicate notification for user=${userId}, type=${type}, entityId=${entityId}`
       );
       return;
     }
-    // Dedup stub: check if same type+message in last X mins
+
     const notification = await Notification.create({
       user: userId,
       type,
       message,
+      entityId: entityId || null,
     });
 
     await sendEmailStub(userId, message);

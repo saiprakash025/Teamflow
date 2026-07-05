@@ -32,6 +32,7 @@ const taskSchema = new mongoose.Schema(
       {
         author: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         body: String,
+        parentComment: { type: mongoose.Schema.Types.ObjectId, default: null },
         createdAt: { type: Date, default: Date.now },
       },
     ],

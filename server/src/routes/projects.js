@@ -53,8 +53,8 @@ router.get('/:id', requireAuth, async (req, res) => {
     const { id } = req.params;
 
     const project = await Project.findById(id)
-    .populate('owner members', 'name email role')
-    .populate('members.user', 'name email role');
+      .populate('owner', 'name email role')
+      .populate('members.user', 'name email role');
 
     if (!project) {
       return res.status(404).json({ message: 'Project not found' });
@@ -62,7 +62,9 @@ router.get('/:id', requireAuth, async (req, res) => {
 
     // Simple access check: owner or member
     const isOwner = project.owner && project.owner._id.toString() === userId;
-    const isMember = project.members.some((m) => m.user && m.user._id.toString() === userId);
+    const isMember = project.members.some(
+      (m) => m.user && m.user._id.toString() === userId
+    );
 
     if (!isOwner && !isMember) {
       return res.status(403).json({ message: 'Not allowed to view this project' });
