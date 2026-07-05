@@ -31,11 +31,19 @@ router.post('/', requireAuth, async (req, res) => {
       return res.status(400).json({ message: 'Project name is required' });
     }
 
+    const memberList = members || [];
+    const ownerAlreadyListed = memberList.some(
+      (m) => m.user && m.user.toString() === userId.toString()
+    );
+    if (!ownerAlreadyListed) {
+      memberList.push({ user: userId, role: 'admin' });
+    }
+
     const project = await Project.create({
       name,
       description,
       owner: userId,
-      members: members || [],
+      members: memberList,
       viewPreference: viewPreference || 'kanban',
     });
 

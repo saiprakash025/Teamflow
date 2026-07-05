@@ -43,17 +43,66 @@ function computeRcaStatus(rca) {
   return 'submitted';
 }
 
-//  list RCA reports 
+//  list RCA reports (scoped to the user's accessible projects)
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const rcas = await Rca.find()
+    const { project } = req.query;
+
+    const accessibleProjects = await Project.find({
+      $or: [{ owner: req.user.userId }, { 'members.user': req.user.userId }],
+    }).select('_id');
+    const accessibleProjectIds = accessibleProjects.map((p) => p._id.toString());
+
+    if (project && !accessibleProjectIds.includes(project)) {
+      return res.status(403).json({ message: 'Not allowed to view RCAs for this project' });
+    }
+
+    const projectIds = project ? [project] : accessibleProjectIds;
+    const taskIds = await Task.find({ project: { $in: projectIds } }).distinct('_id');
+
+    const rcas = await Rca.find({ task: { $in: taskIds } })
       .populate('owner', 'name email')
       .populate('reviewers', 'name email')
+      .populate('task', 'title project')
       .sort({ createdAt: -1 });
 
     res.json(rcas);
   } catch (err) {
     console.error('List RCA error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// get a single RCA (with permission check via its task's project)
+router.get('/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const rca = await Rca.findById(id)
+      .populate('owner', 'name email')
+      .populate('reviewers', 'name email')
+      .populate('reviews.reviewer', 'name email')
+      .populate('comments.author', 'name email')
+      .populate('task', 'title project status');
+
+    if (!rca) {
+      return res.status(404).json({ message: 'RCA not found' });
+    }
+
+    const taskDoc = await Task.findById(rca.task._id || rca.task);
+    const taskProject = taskDoc ? await Project.findById(taskDoc.project) : null;
+
+    const isOwner = rca.owner._id.toString() === req.user.userId;
+    const isReviewer = rca.reviewers.some((r) => r._id.toString() === req.user.userId);
+    const hasProjectAccess = taskProject && canEditTask(taskProject, req.user);
+
+    if (!isOwner && !isReviewer && !hasProjectAccess) {
+      return res.status(403).json({ message: 'Not allowed to view this RCA' });
+    }
+
+    res.json(rca);
+  } catch (err) {
+    console.error('Get RCA error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -119,7 +168,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     const userId = req.user.userId;
     const userRole = req.user.role;
     const { id } = req.params;
-    const { title,timeline,contributingFactors,correctiveActions,preventiveMeasures, reviewers,submit,reviewDecision } = req.body;
+    const { title,timeline,contributingFactors,correctiveActions,preventiveMeasures, reviewers,submit,reviewDecision,attachments } = req.body;
 
     const rca = await Rca.findById(id);
 
@@ -137,6 +186,7 @@ router.put('/:id', requireAuth, async (req, res) => {
       if (correctiveActions !== undefined) rca.correctiveActions = correctiveActions;
       if (preventiveMeasures !== undefined) rca.preventiveMeasures = preventiveMeasures;
       if (Array.isArray(reviewers)) rca.reviewers = reviewers;
+      if (Array.isArray(attachments)) rca.attachments = attachments;
     }
 
     if (isOwner && submit === true && rca.status === 'draft') {

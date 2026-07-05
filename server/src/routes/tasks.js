@@ -116,6 +116,7 @@ router.post('/', requireAuth, async (req, res) => {
       attachments,
       comments,
       mentions,
+      parent,
     } = req.body;
 
     if (!title || !project) {
@@ -140,6 +141,7 @@ router.post('/', requireAuth, async (req, res) => {
       assignee,
       dueDate,
       project,
+      parent: parent || undefined,
       attachments: attachments || [],
       comments: comments || [],
       mentions: mentions || [],
@@ -185,6 +187,35 @@ router.post('/', requireAuth, async (req, res) => {
     res.status(201).json({ task, warning: overloadWarning });
   } catch (err) {
     console.error('Create task error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+//  get single task
+router.get('/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const task = await Task.findById(id)
+      .populate('assignee', 'name email')
+      .populate('project', 'name')
+      .populate('blockedBy', 'title status')
+      .populate('blocks', 'title status')
+      .populate('mentions', 'name email')
+      .populate('comments.author', 'name email');
+
+    if (!task) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    const taskProject = await Project.findById(task.project);
+    if (!taskProject || !canViewProject(taskProject, req.user)) {
+      return res.status(403).json({ message: 'Not allowed to view this task' });
+    }
+
+    res.json(task);
+  } catch (err) {
+    console.error('Get task error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });

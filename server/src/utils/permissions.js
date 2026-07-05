@@ -15,10 +15,11 @@ function canEditProject(project, user) {
 }
 
 function canEditTask(project, user) {
+  const isOwner = project.owner.toString() === user.userId;
   const memberRole = getProjectMemberRole(project, user.userId);
   const isGlobalAdmin = user.role === 'admin';
 
-  return memberRole === 'member' || memberRole === 'admin' || isGlobalAdmin;
+  return isOwner || memberRole === 'member' || memberRole === 'admin' || isGlobalAdmin;
 }
 
 function canViewProject(project, user) {

@@ -8,6 +8,22 @@ const { canEditTask } = require('../utils/permissions');
 
 const router = express.Router();
 
+// GET /api/project-task-links?task=<taskId>
+router.get('/', requireAuth, async (req, res) => {
+  try {
+    const { task } = req.query;
+    if (!task) {
+      return res.status(400).json({ message: 'task query param is required' });
+    }
+
+    const links = await ProjectTaskLink.find({ task }).populate('project', 'name');
+    res.json(links);
+  } catch (err) {
+    console.error('List ProjectTaskLinks error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // POST /api/project-task-links
 // Body: { projectId, taskId }
 router.post('/', requireAuth, async (req, res) => {

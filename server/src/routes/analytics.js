@@ -19,7 +19,17 @@ async function getAccessibleProjectIds(userId) {
 router.get('/summary', requireAuth, async (req, res) => {
   try {
     const userId = req.user.userId;
-    const projectIds = await getAccessibleProjectIds(userId);
+    const { project } = req.query;
+
+    let projectIds = await getAccessibleProjectIds(userId);
+
+    if (project) {
+      const accessibleIdStrings = projectIds.map((id) => id.toString());
+      if (!accessibleIdStrings.includes(project)) {
+        return res.status(403).json({ message: 'Not allowed to view analytics for this project' });
+      }
+      projectIds = [project];
+    }
 
     const [
       projectCount,
