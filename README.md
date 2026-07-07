@@ -120,10 +120,10 @@ npm run dev                # http://localhost:5173
 
 | Email | Password | Role |
 |---|---|---|
-| sai@test.com | password123 | member |
+| sai@test.com | password123 | member |   # make this your main test account
 | rahul@test.com | password123 | member |
-| priya@test.com | password123 | member |
-| admin@test.com | password123 | global admin |
+| priya@test.com | password123 | viewer |
+| admin@test.com | password123 | global admin | #use this to test RCA override
 
 ## Environment Variables
 
