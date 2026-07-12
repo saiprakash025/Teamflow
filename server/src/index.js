@@ -36,6 +36,7 @@ app.use(
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
@@ -76,8 +77,9 @@ app.use('/api/preferences', preferencesRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/uploads', uploadsRouter);
 
-
-
+app.get('/', (req, res) => {
+  res.json({ status: 'TeamFlow API is running' });
+});
 
 
 app.listen(PORT, () => {
